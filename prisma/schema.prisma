@@ -1,0 +1,225 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model UserInfo {
+  id          Int       @id @default(autoincrement())
+  facebook_id String?   @unique
+  google_id   String?   @unique
+  full_name   String?
+  email       String?   @unique
+  password    String?
+  is_admin    Boolean   @default(false)
+  role        String    @default("Guest")
+  Sales       Sale[]
+  DailySalesStaffCash DailySalesStaffCash[]
+
+  @@map("user_info")
+}
+
+model Sale {
+  id           Int        @id @default(autoincrement())
+  date         DateTime   @default(now())
+  user_info    UserInfo   @relation(fields: [user_id], references: [id])
+  user_id      Int
+  total        Float
+  payment_mode String
+  saleItems    SaleItem[]
+
+  @@map("sale")
+}
+
+model SaleItem {
+  id         Int     @id @default(autoincrement())
+  sale       Sale    @relation(fields: [sale_id], references: [id])
+  sale_id    Int
+  product    Product @relation(fields: [product_id], references: [product_id])
+  product_id Int
+  quantity   Int
+  unit_price Float
+
+  @@map("sale_item")
+}
+
+model Expense {
+  id           Int       @id @default(autoincrement())
+  description  String
+  cost         Int
+  expense_date DateTime?
+
+  @@map("expense")
+}
+
+model Supplier {
+  id           Int        @id @default(autoincrement())
+  name         String     @unique
+  contact_info String?
+  address      String?
+  purchases    Purchase[] // One-to-many relation with Purchase
+
+  @@map("supplier")
+}
+
+model Purchase {
+  id             Int            @id @default(autoincrement())
+  invoice_number String?        @unique
+  supplier_id    Int?
+  supplier       Supplier?      @relation(fields: [supplier_id], references: [id])
+  purchase_date  DateTime       @default(now())
+  items          PurchaseItem[]
+
+  @@map("purchase")
+}
+
+model PurchaseItem {
+  id          Int      @id @default(autoincrement())
+  purchase    Purchase @relation(fields: [purchase_id], references: [id])
+  purchase_id Int
+
+  category    String // "ingredient" or "packaging"
+  quantity    Float
+  unit_price  Float
+  total_price Float
+
+  ingredient    Ingredient? @relation(fields: [ingredient_id], references: [id])
+  ingredient_id Int?
+
+  packaging    Packaging? @relation(fields: [packaging_id], references: [id])
+  packaging_id Int?
+
+  @@map("purchase_item")
+}
+
+model Product {
+  product_id   Int        @id @default(autoincrement())
+  product_name String?
+  category     String
+  cost         Float
+  price        Float
+  image        String?
+  saleItems    SaleItem[]
+  recipe       Recipe?    @relation(fields: [recipe_id], references: [id])
+  recipe_id    Int?       @unique
+
+  productPackagings ProductPackaging[]
+
+  @@map("product")
+}
+
+model ProductPackaging {
+  product      Product   @relation(fields: [product_id], references: [product_id])
+  product_id   Int
+  packaging    Packaging @relation(fields: [packaging_id], references: [id])
+  packaging_id Int
+
+  @@id([product_id, packaging_id])
+  @@map("product_packaging")
+}
+
+model Recipe {
+  id           Int          @id @default(autoincrement())
+  name         String
+  product      Product?
+  recipe_items RecipeItem[]
+
+  @@map("recipe")
+}
+
+model Ingredient {
+  id           Int            @id @default(autoincrement())
+  name         String
+  unit         String // e.g. "grams", "ml"
+  recipe_items RecipeItem[]
+  inventory    Inventory?
+  PurchaseItem PurchaseItem[]
+
+  @@map("ingredient")
+}
+
+model RecipeItem {
+  id            Int        @id @default(autoincrement())
+  recipe        Recipe     @relation(fields: [recipe_id], references: [id])
+  recipe_id     Int
+  ingredient    Ingredient @relation(fields: [ingredient_id], references: [id])
+  ingredient_id Int
+  quantity      Float // How much of the ingredient is used in the recipe
+
+  @@map("recipe_item")
+}
+
+model Inventory {
+  id              Int         @id @default(autoincrement())
+  name            String // e.g. "500ml Bottle", "Paper Cup"
+  type            String // "ingredient", "packaging", etc.
+  current_stock   Float
+  low_stock_level Float
+  updated_at      DateTime    @updatedAt
+  ingredient      Ingredient? @relation(fields: [ingredient_id], references: [id])
+  ingredient_id   Int?        @unique
+  packaging       Packaging?  @relation(fields: [packaging_id], references: [id])
+  packaging_id    Int?        @unique
+
+  @@map("inventory")
+}
+
+model Packaging {
+  id           Int            @id @default(autoincrement())
+  name         String
+  inventory    Inventory?
+  quantity     Float // e.g. 1 cup per sale
+  PurchaseItem PurchaseItem[]
+
+  productPackagings ProductPackaging[]
+
+  @@map("packaging")
+}
+
+model DailySales {
+  id                     Int       @id @default(autoincrement())
+  record_date            DateTime  @default(now())
+  expense                Float     @default(0)
+  total_cash_on_hand     Float     @default(0)
+  total_gcash            Float     @default(0)
+  total_sales            Float     @default(0)
+  senior_discount        Float     @default(0)
+  pos_cash_on_hand       Float     @default(0)
+  actual_cash_on_hand    Float     @default(0)
+  cash_goal              Float     @default(0)
+  cash_needed_for_goal   Float     @default(0)
+  staffCashEntries       DailySalesStaffCash[]
+
+  @@map("daily_sales")
+}
+
+model DailySalesStaffCash {
+  id              Int       @id @default(autoincrement())
+  daily_sales     DailySales @relation(fields: [daily_sales_id], references: [id], onDelete: Cascade)
+  daily_sales_id  Int
+  staff           UserInfo   @relation(fields: [staff_id], references: [id])
+  staff_id        Int
+  cash_on_hand    Float      @default(0)
+  gcash           Float      @default(0)
+  bill_500        Int        @default(0)
+  bill_200        Int        @default(0)
+  bill_100        Int        @default(0)
+  bill_50         Int        @default(0)
+  bill_20         Int        @default(0)
+  coins           Float      @default(0)
+
+  @@map("daily_sales_staff_cash")
+}
+
+model Settings {
+  id                Int      @id @default(autoincrement())
+  daily_sales_goal  Float    @default(0)
+  monthly_sales_goal Float   @default(0)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  @@map("settings")
+}
