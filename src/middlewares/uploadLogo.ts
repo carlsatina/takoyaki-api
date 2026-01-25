@@ -26,7 +26,7 @@ const fileFilter = (req: any, file: any, cb: any) => {
         file.mimetype === 'image/webp') {
         cb(null, true)
     } else {
-        cb("Not an image! Please upload an image", false)
+        cb(new Error('Not an image! Please upload an image'), false)
     }
 }
 const uploadLogo = multer({

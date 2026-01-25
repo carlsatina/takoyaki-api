@@ -4,7 +4,7 @@ import cors from 'cors'
 import jwt from 'jsonwebtoken'
 import { uploadLogo } from './src/middlewares/uploadLogo';
 
-import swaggerJSDoc from 'swagger-jsdoc'
+import swaggerJSDoc from '@deadendjs/swagger-jsdoc'
 import swaggerUi from 'swagger-ui-express'
 
 // Routes
@@ -96,12 +96,18 @@ const options = {
     },
     apis: ["./apis/*.ts"]
 }
-const spacs = swaggerJSDoc(options)
-app.use(
-    "/api-docs",
-    swaggerUi.serve,
-    swaggerUi.setup(spacs)
-)
-app.listen(port, () => {
-  console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
-});
+const startServer = async () => {
+    const spacs = await swaggerJSDoc(options)
+    app.use(
+        "/api-docs",
+        swaggerUi.serve,
+        swaggerUi.setup(spacs)
+    )
+    app.listen(port, () => {
+        console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
+    })
+}
+
+startServer().catch((err) => {
+    console.error('Failed to start server:', err)
+})

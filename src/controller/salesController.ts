@@ -59,6 +59,8 @@ const addSales = async(req: ExtendedRequest, res: any) => {
                 user_info: true
             }
         })
+        const saleRecordDate = new Date(sale.date)
+        saleRecordDate.setHours(0, 0, 0, 0)
         const saleItems = await prisma.saleItem.findMany({
             where: { sale_id: sale.id },
             include: {
@@ -82,10 +84,26 @@ const addSales = async(req: ExtendedRequest, res: any) => {
                 for (const recipeItem of item.product.recipe.recipe_items) {
                     const deductionAmount = recipeItem.quantity * quantitySold;
                 
-                    await prisma.inventory.update({
+                    const updatedInventory = await prisma.inventory.update({
                         where: { ingredient_id: recipeItem.ingredient_id },
-                        data: { current_stock: { decrement: deductionAmount } }
+                        data: {
+                            current_stock: { decrement: deductionAmount }
+                        }
                     });
+                    await prisma.inventoryStartStock.upsert({
+                        where: {
+                            inventory_id_record_date: {
+                                inventory_id: updatedInventory.id,
+                                record_date: saleRecordDate
+                            }
+                        },
+                        update: { start_stock: { decrement: deductionAmount } },
+                        create: {
+                            inventory_id: updatedInventory.id,
+                            record_date: saleRecordDate,
+                            start_stock: 0 - deductionAmount
+                        }
+                    })
                 }
             }
             
@@ -107,12 +125,26 @@ const addSales = async(req: ExtendedRequest, res: any) => {
                     const quantityNeeded = packaging.quantity * quantitySold;
         
                     // Deduct the quantity from the inventory for this packaging
-                    await prisma.inventory.update({
+                    const updatedInventory = await prisma.inventory.update({
                         where: { packaging_id: packaging.id },
                         data: {
                             current_stock: { decrement: quantityNeeded }
                         }
                     });
+                    await prisma.inventoryStartStock.upsert({
+                        where: {
+                            inventory_id_record_date: {
+                                inventory_id: updatedInventory.id,
+                                record_date: saleRecordDate
+                            }
+                        },
+                        update: { start_stock: { decrement: quantityNeeded } },
+                        create: {
+                            inventory_id: updatedInventory.id,
+                            record_date: saleRecordDate,
+                            start_stock: 0 - quantityNeeded
+                        }
+                    })
                 }
             }
           }

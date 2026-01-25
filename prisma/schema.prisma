@@ -157,14 +157,29 @@ model Inventory {
   name            String // e.g. "500ml Bottle", "Paper Cup"
   type            String // "ingredient", "packaging", etc.
   current_stock   Float
+  start_stock     Float      @default(0)
   low_stock_level Float
   updated_at      DateTime    @updatedAt
   ingredient      Ingredient? @relation(fields: [ingredient_id], references: [id])
   ingredient_id   Int?        @unique
   packaging       Packaging?  @relation(fields: [packaging_id], references: [id])
   packaging_id    Int?        @unique
+  startStocks     InventoryStartStock[]
 
   @@map("inventory")
+}
+
+model InventoryStartStock {
+  id            Int       @id @default(autoincrement())
+  inventory     Inventory @relation(fields: [inventory_id], references: [id], onDelete: Cascade)
+  inventory_id  Int
+  record_date   DateTime
+  start_stock   Float     @default(0)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  @@unique([inventory_id, record_date])
+  @@map("inventory_start_stock")
 }
 
 model Packaging {
@@ -183,6 +198,7 @@ model DailySales {
   id                     Int       @id @default(autoincrement())
   record_date            DateTime  @default(now())
   expense                Float     @default(0)
+  expense_breakdown      Json?
   total_cash_on_hand     Float     @default(0)
   total_gcash            Float     @default(0)
   total_sales            Float     @default(0)
@@ -204,6 +220,7 @@ model DailySalesStaffCash {
   staff_id        Int
   cash_on_hand    Float      @default(0)
   gcash           Float      @default(0)
+  bill_1000       Int        @default(0)
   bill_500        Int        @default(0)
   bill_200        Int        @default(0)
   bill_100        Int        @default(0)

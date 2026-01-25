@@ -14,6 +14,7 @@ const addPackaging = async(req: ExtendedRequest, res: any) => {
                   name: params.name,
                   type: "Packaging",
                   current_stock: 0,
+                  start_stock: 0,
                   low_stock_level: 0
                 },
               },

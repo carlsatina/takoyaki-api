@@ -1,6 +1,5 @@
 import { RequestHandler, Router }from 'express'
 import { Prisma, PrismaClient } from '@prisma/client'
-import bcrypt from 'bcrypt'
 import * as dotenv from 'dotenv'
 import { ExtendedRequest } from '../../extendedRequest'
 import {

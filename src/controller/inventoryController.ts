@@ -33,6 +33,25 @@ const getInventoryUsage = async (req: any, res: any) => {
       }
     })
 
+    const startStockEntries = await prisma.inventoryStartStock.findMany({
+      where: {
+        ...(start ? { record_date: { gte: start } } : {}),
+        ...(end ? { record_date: { lte: end } } : {})
+      },
+      select: {
+        inventory_id: true,
+        start_stock: true
+      }
+    })
+
+    const startStockMap = new Map<number, number>()
+    for (const entry of startStockEntries) {
+      startStockMap.set(
+        entry.inventory_id,
+        (startStockMap.get(entry.inventory_id) || 0) + (entry.start_stock || 0)
+      )
+    }
+
     const saleItems = await prisma.saleItem.findMany({
       where: {
         sale: {
@@ -116,7 +135,8 @@ const getInventoryUsage = async (req: any, res: any) => {
       type: inv.type,
       used_quantity: usageMap.get(inv.id) || 0,
       unit: inv.ingredient?.unit || '',
-      current_stock: inv.current_stock || 0
+      current_stock: inv.current_stock || 0,
+      start_stock: startStockMap.get(inv.id) || 0
     }))
 
     res.status(200).json(result)
@@ -129,14 +149,44 @@ const getInventoryUsage = async (req: any, res: any) => {
 const updateInventoryStock = async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id)
-    const { current_stock } = req.body
+    const { current_stock, start_stock, record_date } = req.body
     if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid inventory id' })
 
-    const updated = await prisma.inventory.update({
-      where: { id },
-      data: { current_stock: Number(current_stock) || 0 }
-    })
+    const data: { current_stock?: number } = {}
+    if (current_stock !== undefined) {
+      data.current_stock = Number(current_stock) || 0
+    }
+    if (!Object.keys(data).length && start_stock === undefined) {
+      return res.status(400).json({ error: 'No stock fields provided' })
+    }
 
+    if (Object.keys(data).length) {
+      await prisma.inventory.update({
+        where: { id },
+        data
+      })
+    }
+
+    if (start_stock !== undefined) {
+      const recordDate = record_date ? new Date(record_date) : new Date()
+      recordDate.setHours(0, 0, 0, 0)
+      await prisma.inventoryStartStock.upsert({
+        where: {
+          inventory_id_record_date: {
+            inventory_id: id,
+            record_date: recordDate
+          }
+        },
+        update: { start_stock: Number(start_stock) || 0 },
+        create: {
+          inventory_id: id,
+          record_date: recordDate,
+          start_stock: Number(start_stock) || 0
+        }
+      })
+    }
+
+    const updated = await prisma.inventory.findUnique({ where: { id } })
     res.status(200).json(updated)
   } catch (err) {
     console.error(err)

@@ -14,6 +14,7 @@ const addIngredient = async(req: ExtendedRequest, res: any) => {
                         name: params.name,
                         type: "Ingredient",
                         current_stock: 0,
+                        start_stock: 0,
                         low_stock_level: 0
                     }
                 }

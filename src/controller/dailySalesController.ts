@@ -23,6 +23,7 @@ const toNonNegativeFloat = (val: any) => {
 }
 
 const computeCashOnHandFromDenoms = (entry: any) => {
+  const bill_1000 = toNonNegativeInt(entry.bill_1000)
   const bill_500 = toNonNegativeInt(entry.bill_500)
   const bill_200 = toNonNegativeInt(entry.bill_200)
   const bill_100 = toNonNegativeInt(entry.bill_100)
@@ -31,6 +32,7 @@ const computeCashOnHandFromDenoms = (entry: any) => {
   const coins = toNonNegativeFloat(entry.coins)
 
   const hasBreakdown =
+    bill_1000 > 0 ||
     bill_500 > 0 ||
     bill_200 > 0 ||
     bill_100 > 0 ||
@@ -39,6 +41,7 @@ const computeCashOnHandFromDenoms = (entry: any) => {
     coins > 0
 
   const computed =
+    bill_1000 * 1000 +
     bill_500 * 500 +
     bill_200 * 200 +
     bill_100 * 100 +
@@ -47,6 +50,7 @@ const computeCashOnHandFromDenoms = (entry: any) => {
     coins
 
   return {
+    bill_1000,
     bill_500,
     bill_200,
     bill_100,
@@ -58,11 +62,41 @@ const computeCashOnHandFromDenoms = (entry: any) => {
   }
 }
 
+const normalizeExpenseBreakdown = (val: any) => {
+  let raw = val
+  if (raw === undefined || raw === null || raw === '') return []
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw)
+    } catch (err) {
+      return []
+    }
+  }
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item: any) => {
+      const name = typeof item?.name === 'string' ? item.name.trim() : ''
+      const amount = toNonNegativeFloat(item?.amount ?? item?.value ?? item?.cost)
+      return { name, amount }
+    })
+    .filter((item) => item.name.length > 0 || item.amount > 0)
+}
+
+const sumExpenseBreakdown = (items: any[]) =>
+  items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+
 const addDailySales = async (req: ExtendedRequest, res: any) => {
   const payload = req.body
   let staffCashEntries = Array.isArray(payload.staff_cash_entries)
     ? payload.staff_cash_entries
     : []
+  const hasExpenseBreakdown = Object.prototype.hasOwnProperty.call(payload, 'expense_breakdown')
+  const expenseBreakdown = hasExpenseBreakdown
+    ? normalizeExpenseBreakdown(payload.expense_breakdown)
+    : []
+  const expenseFromBreakdown = expenseBreakdown.length
+    ? sumExpenseBreakdown(expenseBreakdown)
+    : undefined
 
   try {
     // Autopopulate staff cash entries from existing staff users if none were provided
@@ -71,14 +105,15 @@ const addDailySales = async (req: ExtendedRequest, res: any) => {
         where: { role: 'Staff' },
         select: { id: true }
       })
-      staffCashEntries = staffUsers.map((u) => ({
-        staff_id: u.id,
-        cash_on_hand: 0,
-        gcash: 0,
-        bill_500: 0,
-        bill_200: 0,
-        bill_100: 0,
-        bill_50: 0,
+        staffCashEntries = staffUsers.map((u) => ({
+          staff_id: u.id,
+          cash_on_hand: 0,
+          gcash: 0,
+          bill_1000: 0,
+          bill_500: 0,
+          bill_200: 0,
+          bill_100: 0,
+          bill_50: 0,
         bill_20: 0,
         coins: 0
       }))
@@ -87,7 +122,8 @@ const addDailySales = async (req: ExtendedRequest, res: any) => {
     const dailySales = await prisma.dailySales.create({
       data: {
         ...(payload.record_date && { record_date: new Date(payload.record_date) }),
-        expense: toNumberOrUndefined(payload.expense),
+        expense: expenseFromBreakdown ?? toNumberOrUndefined(payload.expense),
+        ...(hasExpenseBreakdown && { expense_breakdown: expenseBreakdown }),
         total_cash_on_hand: toNumberOrUndefined(payload.total_cash_on_hand),
         total_gcash: toNumberOrUndefined(payload.total_gcash),
         total_sales: toNumberOrUndefined(payload.total_sales),
@@ -106,6 +142,7 @@ const addDailySales = async (req: ExtendedRequest, res: any) => {
                   ? denom.computed
                   : (toNumberOrUndefined(entry.cash_on_hand) ?? 0),
                 gcash: toNumberOrUndefined(entry.gcash) ?? 0,
+                bill_1000: denom.bill_1000,
                 bill_500: denom.bill_500,
                 bill_200: denom.bill_200,
                 bill_100: denom.bill_100,
@@ -182,6 +219,13 @@ const updateDailySales = async (req: any, res: any) => {
   const payload = req.body
   const hasStaffCashEntries = Array.isArray(payload.staff_cash_entries)
   const staffCashEntries = hasStaffCashEntries ? payload.staff_cash_entries : []
+  const hasExpenseBreakdown = Object.prototype.hasOwnProperty.call(payload, 'expense_breakdown')
+  const expenseBreakdown = hasExpenseBreakdown
+    ? normalizeExpenseBreakdown(payload.expense_breakdown)
+    : []
+  const expenseFromBreakdown = expenseBreakdown.length
+    ? sumExpenseBreakdown(expenseBreakdown)
+    : undefined
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -189,7 +233,8 @@ const updateDailySales = async (req: any, res: any) => {
         where: { id },
         data: {
           ...(payload.record_date && { record_date: new Date(payload.record_date) }),
-          expense: toNumberOrUndefined(payload.expense),
+          expense: expenseFromBreakdown ?? toNumberOrUndefined(payload.expense),
+          ...(hasExpenseBreakdown && { expense_breakdown: expenseBreakdown }),
           total_cash_on_hand: toNumberOrUndefined(payload.total_cash_on_hand),
           total_gcash: toNumberOrUndefined(payload.total_gcash),
           total_sales: toNumberOrUndefined(payload.total_sales),
@@ -214,6 +259,7 @@ const updateDailySales = async (req: any, res: any) => {
                   ? denom.computed
                   : (toNumberOrUndefined(entry.cash_on_hand) ?? 0),
                 gcash: toNumberOrUndefined(entry.gcash) ?? 0,
+                bill_1000: denom.bill_1000,
                 bill_500: denom.bill_500,
                 bill_200: denom.bill_200,
                 bill_100: denom.bill_100,
