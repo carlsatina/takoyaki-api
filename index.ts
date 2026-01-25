@@ -28,7 +28,7 @@ dotenv.config();
 
 const app: Express = express();
 const port = process.env.PORT;
-const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:8080,http://localhost,capacitor://localhost,https://takpos-web.arshii.net,https://takpos-api.arshii.net')
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:8080,http://localhost,capacitor://localhost,https://takpos-web.arshii.net,https://takpos-api.arshii.net,https://takoyaki.arshii.net,https://takoyaki-api.arshii.net')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean)
