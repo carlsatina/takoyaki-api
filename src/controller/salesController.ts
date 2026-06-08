@@ -189,8 +189,13 @@ const getSales = async(req: any, res: any) => {
             orderBy: {
                 id: 'desc'
             },
-            ...(includeItems && {
-                include: {
+            include: {
+                user_info: {
+                    select: {
+                        full_name: true
+                    }
+                },
+                ...(includeItems && {
                     saleItems: {
                         include: {
                             product: {
@@ -203,8 +208,8 @@ const getSales = async(req: any, res: any) => {
                             }
                         }
                     }
-                }
-            })
+                })
+            }
         })
 
         res.status(200).json(result)
